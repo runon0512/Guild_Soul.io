@@ -17,7 +17,7 @@ const SALARY_RANK_BONUS = {
     'G': 100,
     'F': 250,
     'E': 500,
-    'D': 100,
+    'D': 1000,
     'C': 2000,
     'B': 5000,
     'A': 7500,
@@ -37,6 +37,9 @@ const PROMOTION_DIFFICULTIES = {
 };
 // 昇級試験の成功率の基本値 (不足している場合に適用される最低ライン)
 const PROMOTION_BASE_SUCCESS_RATE = 50; 
+
+// ★ スカウト能力強化の費用
+const SCOUT_UPGRADE_COSTS = [100, 200, 300, 500, 1000];
 
 
 // スカウト方針の定義 (費用を万G単位に調整)
@@ -444,7 +447,54 @@ function updateDisplay() {
     scoutSkillEl.textContent = scoutSkill;
     renderAdventurerList();
     renderQuests();
+    updateScoutUpgradeButton();
 }
+/**
+ * スカウト能力を強化します。
+ */
+function upgradeScoutSkill() {
+    const currentUpgradeLevel = Math.floor((scoutSkill - 100) / 10);
+
+    if (currentUpgradeLevel >= SCOUT_UPGRADE_COSTS.length) {
+        alert('スカウト能力はこれ以上強化できません。');
+        return;
+    }
+
+    const cost = SCOUT_UPGRADE_COSTS[currentUpgradeLevel];
+
+    if (gold < cost) {
+        alert(`資金が足りません。強化には ${cost} 万G 必要です。`);
+        return;
+    }
+
+    if (confirm(`スカウト能力を強化しますか？\n費用: ${cost} 万G\n効果: スカウト能力 +10`)) {
+        gold -= cost;
+        scoutSkill += 10;
+        alert(`スカウト能力が10上昇し、${scoutSkill}になりました！`);
+        updateDisplay();
+    }
+}
+
+/**
+ * スカウト能力強化ボタンの表示を更新します。
+ */
+function updateScoutUpgradeButton() {
+    const button = document.getElementById('upgrade-scout-button');
+    if (!button) return;
+
+    const currentUpgradeLevel = Math.floor((scoutSkill - 100) / 10);
+
+    if (currentUpgradeLevel >= SCOUT_UPGRADE_COSTS.length) {
+        button.textContent = 'スカウト能力 (強化MAX)';
+        button.disabled = true;
+    } else {
+        const cost = SCOUT_UPGRADE_COSTS[currentUpgradeLevel];
+        button.textContent = `スカウト能力強化 (+10 / ${cost}万G)`;
+        button.disabled = false;
+    }
+}
+
+
 
 // --- 冒険者リストの表示 (キャンセルボタンを追加) ---
 function renderAdventurerList() {
@@ -1429,40 +1479,38 @@ function processYearEnd() {
  * 月を進める機能（Next Monthボタンに対応）
  */
 function nextMonth() {
+    const previousMonth = currentMonth;
+    const previousYear = currentYear;
     let yearEndMessage = '';
-    // 年末処理
-    if (currentMonth === 12) {
-        yearEndMessage = processYearEnd();
-        currentYear++;
-        currentMonth = 1;
-    } else {
-        currentMonth++;
-    }
     
-    let summaryMessage = `【${currentYear}年 ${currentMonth-1 === 0 ? 12 : currentMonth-1}月の収支報告】\n\n`;
+    let summaryMessage = `【${previousYear}年 ${previousMonth}月の収支報告】\n\n`;
     let totalIncome = 0;
     let totalExpense = 0;
     
     // 1. 進行中のクエストの結果を処理
     if (questsInProgress.length > 0) {
         const questResults = processQuestsResults();
-        // 年末処理メッセージがある場合、クエスト結果の前に挿入
-        if (yearEndMessage) {
-            summaryMessage += yearEndMessage + questResults.message;
-        } else {
-            summaryMessage += questResults.message;
-        }
+        summaryMessage += questResults.message;
         totalIncome += questResults.income;
         totalExpense += questResults.expense;
     } else {
         summaryMessage += "前月に派遣予定のクエストはありませんでした。\n";
     }
 
-    // 2. 冒険者への給与支払い処理
+    // 2. 年末処理 (クエスト処理の後に行う)
+    if (previousMonth === 12) {
+        yearEndMessage = processYearEnd();
+        currentYear++;
+        currentMonth = 1;
+    } else {
+        currentMonth++;
+    }
+
+    // 3. 冒険者への給与支払い処理
     const monthlySalaryExpense = payMonthlySalary();
     totalExpense += monthlySalaryExpense;
     
-    // ★★★ 加齢による能力低下処理を追加 ★★★
+    // 4. 加齢による能力低下処理を追加
     const agingMessage = processAgingEffects();
     if (agingMessage) {
         summaryMessage += agingMessage;
@@ -1470,7 +1518,9 @@ function nextMonth() {
 
     // 年末処理メッセージを追加 (クエストがなかった場合)
     if (yearEndMessage && questsInProgress.length === 0) {
-        summaryMessage += yearEndMessage;
+        summaryMessage += yearEndMessage; // クエスト結果がなくても年末処理メッセージは表示
+    } else if (yearEndMessage) {
+        summaryMessage += yearEndMessage; // クエスト結果があっても年末処理メッセージは表示
     }
     
     summaryMessage += `\n-----------------------\n`;
@@ -1478,12 +1528,7 @@ function nextMonth() {
     summaryMessage += `総収支: +${totalIncome} 万G (収入) -${totalExpense} 万G (支出) = ${totalIncome - totalExpense} 万G\n`;
     summaryMessage += `次月資金: ${gold} 万G`;
 
-    // 3. ギルドの成長処理 (スカウト能力の上昇など)
-    if (adventurers.length > 0) {
-        scoutSkill = Math.min(300, scoutSkill + Math.floor(adventurers.length / 5) + 1);
-    }
-
-    // 4. クエストのリセット（全て復活）
+    // 6. クエストのリセット（全て復活）
     quests.forEach(q => q.available = true);
     
     // 資金不足チェック
@@ -1729,4 +1774,5 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     // ★ 年表示に対応
     document.getElementById('month').textContent = `${currentYear}年 ${currentMonth}月`;
+    updateScoutUpgradeButton();
 });
