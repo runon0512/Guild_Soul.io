@@ -7,6 +7,7 @@ let questsInProgress = []; // 進行中のクエスト
 let nextAdventurerId = 1;
 let currentMonth = 1;
 let currentYear = 1; // ★ 年を追加
+let allTimeAdventurers = {}; // ★ ゲームオーバー時のリザルト用に全期間の冒険者データを記録
 
 
 // --- ランク定義 ---
@@ -139,6 +140,36 @@ function getRankColor(rank) {
         case 'F': return '#A0522D'; // Sienna
         case 'G': return '#696969'; // DimGray
         default: return 'inherit';
+    }
+}
+
+/**
+ * 冒険者の最高記録（OVR、ランク、スキル）を更新します。
+ * @param {Object} adv - 対象の冒険者オブジェクト
+ */
+function updateAllTimeRecord(adv) {
+    const record = allTimeAdventurers[adv.id];
+
+    if (!record) {
+        // 新規登録
+        allTimeAdventurers[adv.id] = {
+            id: adv.id,
+            name: adv.name,
+            gender: adv.gender,
+            peakOvr: adv.ovr,
+            peakRank: adv.rank,
+            peakSkills: { ...adv.skills },
+        };
+    } else {
+        // 既存冒険者の最高記録更新チェック
+        // OVRが同じかそれ以上の場合に更新（ランクアップを反映するため）
+        if (adv.ovr >= record.peakOvr) {
+            record.peakOvr = adv.ovr;
+            record.peakRank = adv.rank;
+            record.peakSkills = { ...adv.skills };
+            // 名前が変更されている可能性も考慮
+            record.name = adv.name;
+        }
     }
 }
 
@@ -386,6 +417,9 @@ function levelUp(adv) {
         totalIncrease += actualIncrease;
 
         const skillNameJp = skill === 'combat' ? '戦闘' : skill === 'magic' ? '魔法' : '探索';
+
+        // ★ 最高記録を更新
+        updateAllTimeRecord(adv);
         
         // メッセージに上昇分を追加
         if (actualIncrease > 0) {
@@ -457,11 +491,18 @@ function renderAdventurerList() {
             actionButtons = `<button onclick="cancelScheduledQuest(${adv.id}, '${questName}')">予定をキャンセル</button>`;
         } else {
             // ★ 待機中の冒険者に「名前変更」ボタンを追加
-            actionButtons = `<button onclick="renameAdventurer(${adv.id})">名前変更</button>`;
+            actionButtons = `
+                <button onclick="renameAdventurer(${adv.id})">名前変更</button>
+                <button class="retire-button" onclick="retireAdventurer(${adv.id})">引退</button>
+            `;
         }
 
         // ★ ランクの色を取得
         const rankColor = getRankColor(adv.rank);
+
+        // ★ 表示用の年俸を「月給 x 12」で再計算
+        const monthlySalary = Math.ceil(adv.annualSalary / 12);
+        const displayedAnnualSalary = monthlySalary * 12;
 
         row.innerHTML = `
             <td>${adv.name}</td>
@@ -471,7 +512,7 @@ function renderAdventurerList() {
             <td>${adv.skills.combat}</td>
             <td>${adv.skills.magic}</td>
             <td>${adv.skills.exploration}</td>
-            <td>${adv.annualSalary}</td>
+            <td>${displayedAnnualSalary}</td>
             <td>
                 ${adv.exp} / ${adv.expToLevelUp}
                 <div class="exp-bar-container">
@@ -566,9 +607,56 @@ function renameAdventurer(advId) {
     adv.name = trimmedName;
 
     alert(`冒険者「${oldName}」の名前を「${adv.name}」に変更しました。`);
+
+    // ★ 最高記録の名前を更新
+    updateAllTimeRecord(adv);
     
     // 表示を更新して変更を反映
     updateDisplay();
+}
+
+/**
+ * 冒険者を引退させます。退職金として、その年の残りの月数分の給与を支払います。
+ * @param {number} advId - 冒険者のID
+ */
+function retireAdventurer(advId) {
+    const adv = adventurers.find(a => a.id === advId);
+    if (!adv) {
+        alert('対象の冒険者が見つかりません。');
+        return;
+    }
+
+    // クエスト予定中の冒険者は引退させられない
+    if (adv.status !== '待機中') {
+        alert('クエスト予定中の冒険者は引退させられません。');
+        return;
+    }
+
+    // 退職金の計算
+    // その年の残り月数（今月分も含む） x 月給
+    const remainingMonths = 12 - currentMonth + 1;
+    const monthlySalary = Math.ceil(adv.annualSalary / 12);
+    const severancePay = monthlySalary * remainingMonths;
+
+    const confirmationMessage = `冒険者「${adv.name}」を引退させますか？\n\n` +
+        `退職金として、今年の残り契約期間分 ${severancePay} 万G が必要です。\n` +
+        `（残り${remainingMonths}ヶ月 × 月給${monthlySalary}万G）`;
+
+    if (confirm(confirmationMessage)) {
+        if (gold < severancePay) {
+            alert(`資金が足りません！ 退職金の支払いに ${severancePay} 万G 必要です。`);
+            return;
+        }
+
+        // 支払いと引退処理
+        gold -= severancePay;
+        adventurers = adventurers.filter(a => a.id !== advId);
+
+        alert(`冒険者「${adv.name}」がギルドを去りました。\n退職金として ${severancePay} 万G を支払いました。`);
+        
+        // 表示を更新
+        updateDisplay();
+    }
 }
 
 
@@ -748,6 +836,11 @@ function joinSelectedAdventurers(policyKey) {
     
     const selectedAdventurers = scoutCandidates.filter(c => selectedIds.includes(c.id));
     adventurers.push(...selectedAdventurers);
+
+    // ★ 新メンバーを最高記録に登録
+    selectedAdventurers.forEach(adv => {
+        updateAllTimeRecord(adv);
+    });
     
     alert(`${selectedAdventurers.length}名の冒険者をギルドに迎え入れ、合計 ${totalCost} 万Gを支払いました！`);
 
@@ -1093,6 +1186,108 @@ function showQuestSelection(questId, targetAdvId = null) {
     updateQuestSuccessRate(quest);
 }
 
+/**
+ * 待機中の冒険者に自動で任務を割り当てます。
+ */
+function autoAssignQuests() {
+    const availableAdventurers = adventurers.filter(adv => adv.status === '待機中');
+
+    if (availableAdventurers.length === 0) {
+        alert('任務を割り当てられる待機中の冒険者がいません。');
+        return;
+    }
+
+    let assignedCount = 0;
+    const unassignedAdventurers = [...availableAdventurers];
+
+    // --- フェーズ1: 成功率90%超の単独任務を探す ---
+    for (const adv of availableAdventurers) {
+        let bestSoloQuest = null;
+        let maxDifficulty = -1;
+
+        // 利用可能な通常クエストをフィルタリング
+        const availableQuests = quests.filter(q => {
+            if (!q.available) return false;
+            if (q.requiredRank) {
+                const requiredRankIndex = RANKS.indexOf(q.requiredRank);
+                const advRankIndex = RANKS.indexOf(adv.rank);
+                return advRankIndex >= requiredRankIndex;
+            }
+            return true;
+        });
+
+        for (const quest of availableQuests) {
+            const successRate = calculateSuccessRate(quest, [adv]);
+            if (successRate > 0.9) {
+                if (quest.difficulty > maxDifficulty) {
+                    maxDifficulty = quest.difficulty;
+                    bestSoloQuest = quest;
+                }
+            }
+        }
+
+        if (bestSoloQuest) {
+            // 最適な単独任務に派遣
+            sendAdventurersToQuestInternal(bestSoloQuest, [adv]);
+            // 未割り当てリストから削除
+            const index = unassignedAdventurers.findIndex(u => u.id === adv.id);
+            if (index > -1) {
+                unassignedAdventurers.splice(index, 1);
+            }
+            assignedCount++;
+        }
+    }
+
+    // --- フェーズ2: 残った冒険者を共同任務に参加させる ---
+    if (unassignedAdventurers.length > 0 && questsInProgress.length > 0) {
+        for (const adv of unassignedAdventurers) {
+            // 参加可能な共同任務を探す (4人未満)
+            const joinableQuests = questsInProgress.filter(qData => !qData.quest.isPromotion && qData.adventurers.length < 4);
+
+            if (joinableQuests.length > 0) {
+                // 成功率が最も低く、同じ場合は難易度が最も高い任務を選ぶ
+                joinableQuests.sort((a, b) => {
+                    if (a.rate !== b.rate) {
+                        return a.rate - b.rate; // 成功率の昇順
+                    }
+                    return b.quest.difficulty - a.quest.difficulty; // 難易度の降順
+                });
+
+                const targetQuestData = joinableQuests[0];
+                
+                // 冒険者を追加してステータスと成功率を更新
+                targetQuestData.adventurers.push(adv);
+                adv.status = `クエスト予定: ${targetQuestData.quest.name}`;
+                targetQuestData.rate = calculateSuccessRate(targetQuestData.quest, targetQuestData.adventurers);
+                
+                assignedCount++;
+            }
+        }
+    }
+
+    if (assignedCount > 0) {
+        alert(`${assignedCount}人の冒険者に任務を割り当てました。`);
+        updateDisplay();
+    } else {
+        alert('条件に合う任務が見つからず、誰も割り当てられませんでした。');
+    }
+}
+
+/**
+ * [内部処理用] 冒険者をクエストに派遣予定に入れる
+ * @param {Object} quest - クエストオブジェクト
+ * @param {Array} sentAdventurers - 派遣する冒険者の配列
+ */
+function sendAdventurersToQuestInternal(quest, sentAdventurers) {
+    quest.available = false;
+    const successRate = calculateSuccessRate(quest, sentAdventurers);
+    sentAdventurers.forEach(adv => adv.status = `クエスト予定: ${quest.name}`);
+    questsInProgress.push({
+        quest: quest,
+        adventurers: sentAdventurers,
+        rate: successRate
+    });
+}
 
 /**
  * 選択された冒険者に基づいて成功確率とUIを更新します。
@@ -1165,60 +1360,27 @@ function updateQuestSuccessRate(quest) {
  * @param {number} [targetAdvId=null] - 昇級試験の場合、対象の冒険者のID
  */
 function sendAdventurersToQuest(questId, isPromotion, targetAdvId = null) {
-    let quest;
-    let selectedIds;
-
     const checkedCheckboxes = document.querySelectorAll('#quest-candidate-table input[type="checkbox"]:checked');
-    selectedIds = Array.from(checkedCheckboxes).map(cb => parseInt(cb.value));
-
-    // 昇級試験の処理
-    if (isPromotion) {
-        if (selectedIds.length !== 1 || selectedIds[0] !== targetAdvId) {
-            alert('昇級試験は単独任務であり、対象者のみが受験できます。');
-            cancelQuestSelection();
-            return;
-        }
-        const adv = adventurers.find(a => a.id === selectedIds[0]);
-        if (!adv) return;
-        
-        const currentRankIndex = RANKS.indexOf(adv.rank);
-        const nextRank = RANKS[currentRankIndex + 1];
-        const requiredDifficulty = PROMOTION_DIFFICULTIES[adv.rank];
-
-        quest = {
-            id: questId,
-            name: `${adv.name} の昇級試験 (${adv.rank} → ${nextRank})`,
-            reward: 0,
-            difficulty: requiredDifficulty,
-            aptitudes: { combat: '無関係', magic: '無関係', exploration: '無関係' },
-            isPromotion: true,
-            advId: adv.id,
-            advRankBefore: adv.rank, // 昇級処理のために元のランクを保持
-        };
-        
-        // 昇級試験はクエストリストから消えないため、quests.findは行わない
-    } else {
-        quest = quests.find(q => q.id === questId);
-        if (!quest) return;
-        // 通常クエストは非表示に
-        quest.available = false;
-    }
-
-
+    const selectedIds = Array.from(checkedCheckboxes).map(cb => parseInt(cb.value));
     const sentAdventurers = adventurers.filter(adv => selectedIds.includes(adv.id));
 
-    // 成功確率を計算
-    const successRate = calculateSuccessRate(quest, sentAdventurers);
-    
-    // 1. 冒険者のステータスを「クエスト予定」に設定
-    sentAdventurers.forEach(adv => adv.status = `クエスト予定: ${quest.name}`);
-    
-    // 2. クエストを進行中リストに追加
-    questsInProgress.push({
-        quest: quest,
-        adventurers: sentAdventurers,
-        rate: successRate
-    });
+    if (isPromotion) {
+        const adv = sentAdventurers[0];
+        if (!adv) return;
+        const currentRankIndex = RANKS.indexOf(adv.rank);
+        const nextRank = RANKS[currentRankIndex + 1];
+        const quest = {
+            id: questId,
+            name: `${adv.name} の昇級試験 (${adv.rank} → ${nextRank})`,
+            difficulty: PROMOTION_DIFFICULTIES[adv.rank],
+            isPromotion: true,
+        };
+        sendAdventurersToQuestInternal(quest, sentAdventurers);
+    } else {
+        const quest = quests.find(q => q.id === questId);
+        if (!quest) return;
+        sendAdventurersToQuestInternal(quest, sentAdventurers);
+    }
 
     // 3. UIを更新
     cancelQuestSelection();
@@ -1300,6 +1462,12 @@ function nextMonth() {
     const monthlySalaryExpense = payMonthlySalary();
     totalExpense += monthlySalaryExpense;
     
+    // ★★★ 加齢による能力低下処理を追加 ★★★
+    const agingMessage = processAgingEffects();
+    if (agingMessage) {
+        summaryMessage += agingMessage;
+    }
+
     // 年末処理メッセージを追加 (クエストがなかった場合)
     if (yearEndMessage && questsInProgress.length === 0) {
         summaryMessage += yearEndMessage;
@@ -1320,8 +1488,8 @@ function nextMonth() {
     
     // 資金不足チェック
     if (gold < 0) {
-        alert("ギルドの資金が底を尽きました... ゲームオーバーです。");
-        // ここでゲームオーバー処理などを追加
+        showGameOverScreen();
+        return; // ゲームオーバーなので以降の処理は行わない
     } else {
         alert("新しい月になりました！\n\n" + summaryMessage);
     }
@@ -1383,6 +1551,9 @@ function processQuestsResults() {
                 // 昇級処理
                 adv.rank = nextRank; 
                 promotionMessages.push(`🎉 ${adv.name} は昇級試験に合格し、【${nextRank}】に昇級しました！ (EXP+${averageGainedExp}P)`);
+                // ★ 最高記録を更新
+                updateAllTimeRecord(adv);
+
                 resultMessage = `✅ 成功: 昇級！`;
 
             } else {
@@ -1450,6 +1621,104 @@ function payMonthlySalary() {
     gold -= totalMonthlySalary; 
     
     return totalMonthlySalary;
+}
+
+/**
+ * 年齢による能力の低下を処理します。35歳を超えた冒険者は毎月能力が低下します。
+ * @returns {string} 能力低下のサマリーメッセージ
+ */
+function processAgingEffects() {
+    let agingMessages = [];
+    adventurers.forEach(adv => {
+        if (adv.age > 35) {
+            let decreasedSkills = [];
+            let totalDecrease = 0;
+
+            // 各スキルを1ずつ減少させる（最低値は0）
+            if (adv.skills.combat > 0) {
+                adv.skills.combat--;
+                totalDecrease++;
+                decreasedSkills.push('戦闘');
+            }
+            if (adv.skills.magic > 0) {
+                adv.skills.magic--;
+                totalDecrease++;
+                decreasedSkills.push('魔法');
+            }
+            if (adv.skills.exploration > 0) {
+                adv.skills.exploration--;
+                totalDecrease++;
+                decreasedSkills.push('探索');
+            }
+
+            if (totalDecrease > 0) {
+                // OVRを更新
+                adv.ovr -= totalDecrease;
+                agingMessages.push(`・${adv.name}(${adv.age}歳)は加齢により能力が低下しました (${decreasedSkills.join('/')} -1)。`);
+            }
+        }
+    });
+
+    if (agingMessages.length > 0) {
+        return `\n**【加齢による能力変化】**\n` + agingMessages.join('\n') + '\n';
+    }
+    return '';
+}
+
+/**
+ * ゲームオーバー画面を表示します。
+ */
+function showGameOverScreen() {
+    const gameContainer = document.getElementById('game-container');
+    gameContainer.innerHTML = `
+        <h1>Game Over</h1>
+        <p>ギルドの資金が底を尽き、運営を続けることができなくなりました...</p>
+        <h2>ギルドの殿堂</h2>
+        <p>ギルドに在籍した冒険者たちの最も輝かしい記録です。</p>
+        <div id="hall-of-fame"></div>
+        <div style="text-align: center; margin-top: 30px;">
+            <button onclick="location.reload()">もう一度プレイする</button>
+        </div>
+    `;
+
+    const hallOfFameEl = document.getElementById('hall-of-fame');
+    if (Object.keys(allTimeAdventurers).length === 0) {
+        hallOfFameEl.innerHTML = '<p>ギルドには誰も所属していませんでした...</p>';
+        return;
+    }
+
+    const table = document.createElement('table');
+    table.innerHTML = `
+        <tr>
+            <th>名前</th>
+            <th>性別</th>
+            <th>最高ランク</th>
+            <th>最高OVR</th>
+            <th>戦闘</th>
+            <th>魔法</th>
+            <th>探索</th>
+        </tr>
+    `;
+
+    // OVRが高い順にソートして表示
+    const sortedRecords = Object.values(allTimeAdventurers).sort((a, b) => b.peakOvr - a.peakOvr);
+
+    sortedRecords.forEach(record => {
+        const rankColor = getRankColor(record.peakRank);
+        table.innerHTML += `
+            <tr>
+                <td>${record.name}</td>
+                <td>${record.gender}</td>
+                <td><span class="adventurer-rank" style="color: ${rankColor}; font-weight: bold;">${record.peakRank}</span></td>
+                <td>${record.peakOvr}</td>
+                <td>${record.peakSkills.combat}</td>
+                <td>${record.peakSkills.magic}</td>
+                <td>${record.peakSkills.exploration}</td>
+            </tr>
+        `;
+    });
+
+    hallOfFameEl.appendChild(table);
 }
 
 // --- 初期化 ---
