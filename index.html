@@ -2,61 +2,55 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>吉備の野望 β0.0.1</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Guild Soul</title>
+    <link rel="icon" href="Sword.png">
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <h1>試合</h1>
+    <div id="game-container">
+        <h1>ギルド・ソウル</h1>
+
+        <div id="time-controls" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding: 10px; background: #f0f0f0;">
+            <p style="font-size: 1.2em; margin: 0;">🗓️ 現在の月: <strong id="month">1年目の 1月</strong></p>
+            <button onclick="nextMonth()" style="padding: 10px 20px; font-weight: bold; background-color: #4CAF50; color: white; border: none; cursor: pointer;">
+                ▶️ Next Month
+            </button>
+        </div>
+        
+        <div id="stats">
+            <p><strong>資金:</strong> <span id="gold">100</span> 万G</p>
+            <p><strong>冒険者数:</strong> <span id="adventurer-count">0</span> 人</p>
+            <p><strong>スカウト能力:</strong> <span id="scout-skill">100</span></p> 
+        </div>
+
+        <hr>
+
+        <h2>🛡️ ギルド管理 - スカウト</h2>
+        <div class="controls" id="scout-controls">
+            <button onclick="scoutAdventurers('immediate')">即戦力重視 (5 万G)</button> 
+            <button onclick="scoutAdventurers('growth')">成長重視 (5 万G)</button> 
+            <button onclick="scoutAdventurers('focused')">集中スカウト (30 万G)</button>
+        </div>
+        <hr>
+
+        <div id="scout-area" style="display: none;">
+            </div>
+
+        <h2>👨‍👩‍👧‍👦 所属冒険者リスト</h2>
+        <div id="adventurer-list">
+            </div>
+
+        <hr>
+
+        <div id="quests">
+            </div>
+
+        <div id="quest-detail-area" style="display: none;">
+            </div>
+        
+    </div>
     
-    <div id="auth-area">
-        <h2>アクセス認証</h2>
-        <p>吉備の野望を続行するにはIDを入力してください。</p>
-        <input type="password" id="access-id" placeholder="IDを入力..." style="padding: 10px; margin-bottom: 10px; width: 80%; max-width: 300px; border: 1px solid #ccc; border-radius: 4px;">
-        <button onclick="authenticateId()">認証</button>
-        <p id="auth-message" style="color: red; margin-top: 10px;"></p>
-    </div>
-    <div id="setup-area" style="display: none;"> 
-        <h2>AIプレイヤー設定</h2>
-        <p>P1とP2が以下のプリセットステータスで対戦します。</p>
-        <div id="player-info-container"> 
-             <div class="player-config">
-                <h3>Player 1 (AI)</h3>
-                <select id="player1-preset" onchange="displayStatus('player1-status', this.value)">
-                    </select>
-                <div id="player1-status"></div>
-            </div>
-
-            <div class="player-config">
-                <h3>Player 2 (AI)</h3>
-                <select id="player2-preset" onchange="displayStatus('player2-status', this.value)">
-                    </select>
-                <div id="player2-status"></div>
-            </div>
-        </div>
-
-        <button onclick="startGame()">ゲーム開始</button>
-    </div>
-
-    <div id="game-area" style="display: none;">
-        <div id="scoreboard">
-            <span id="p1-score" class="score-display">P1: 0</span> - <span id="p2-score" class="score-display">P2: 0</span>
-            <div id="current-server"></div>
-        </div>
-        
-        <div id="main-content-row"> 
-             <div id="p1-adaptation-display" class="adaptation-display-box">
-                </div>
-            <div id="p2-adaptation-display" class="adaptation-display-box">
-                </div>
-        </div>
-        
-        
-        <div id="game-log-wrapper">
-            <h3>試合ログ (最終得点のみ)</h3>
-            <div id="game-log"></div>
-        </div>
-    </div>
-
     <script src="game.js"></script>
 </body>
 </html>
