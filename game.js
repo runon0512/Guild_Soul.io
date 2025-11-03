@@ -8,6 +8,8 @@ let nextAdventurerId = 1;
 let currentMonth = 1;
 let currentYear = 1; // ★ 年を追加
 let allTimeAdventurers = {}; // ★ ゲームオーバー時のリザルト用に全期間の冒険者データを記録
+let tutorialStep = 0; // 0:off, 1:scout, 2:join, 3:assign, 4:next month
+let isInTutorial = false;
 
 
 // --- ランク定義 ---
@@ -124,6 +126,10 @@ const adventurerListEl = document.getElementById('adventurer-list');
 const scoutAreaEl = document.getElementById('scout-area'); 
 const scoutSkillEl = document.getElementById('scout-skill'); 
 const questDetailAreaEl = document.getElementById('quest-detail-area'); 
+
+// --- チュートリアル用DOM要素 ---
+const tutorialOverlay = document.getElementById('tutorial-overlay');
+const tutorialText = document.getElementById('tutorial-text');
 
 // --- ユーティリティ関数 ---
 
@@ -809,7 +815,7 @@ function renderScoutCandidates(policyKey) {
     controlDiv.innerHTML = `
         <p><strong>合計加入費用:</strong> <span id="total-join-cost">0</span> 万G ${maxJoinText}</p>
         <button id="join-button" onclick="joinSelectedAdventurers('${policyKey}')">選んだ冒険者をギルドに加入させる</button> 
-        <button onclick="cancelScout()">スカウトを中断・キャンセルする</button>
+        <button class="cancel-scout-button" onclick="cancelScout()">スカウトを中断・キャンセルする</button>
     `;
     
     scoutAreaEl.appendChild(candidateTable);
@@ -1766,13 +1772,205 @@ function showGameOverScreen() {
     hallOfFameEl.appendChild(table);
 }
 
+// --- チュートリアル機能 ---
+
+function startTutorial() {
+    isInTutorial = true;
+    tutorialStep = 1;
+    showTutorialStep(tutorialStep);
+}
+
+function advanceTutorial() {
+    tutorialStep++;
+    showTutorialStep(tutorialStep);
+}
+
+function endTutorial() {
+    isInTutorial = false;
+    tutorialStep = 0;
+    if (tutorialOverlay) {
+        tutorialOverlay.style.display = 'none';
+    }
+    // 全てのハイライトを解除
+    document.querySelectorAll('.tutorial-highlight').forEach(el => {
+        el.classList.remove('tutorial-highlight');
+    });
+    // チュートリアルで無効化したボタンを有効に戻す
+    const disabledButtons = document.querySelectorAll('.tutorial-disabled');
+    disabledButtons.forEach(button => {
+        button.disabled = false;
+        button.classList.remove('tutorial-disabled');
+    });
+    localStorage.setItem('guildSoulTutorialCompleted', 'true');
+}
+
+function showTutorialStep(step) {
+    if (!tutorialOverlay) return;
+
+    // 既存のハイライトを全て解除
+    document.querySelectorAll('.tutorial-highlight').forEach(el => {
+        el.classList.remove('tutorial-highlight');
+        // 以前のステップで追加したリスナーを全て削除
+        const newEl = el.cloneNode(true);
+        if (el.parentNode) {
+            el.parentNode.replaceChild(newEl, el);
+        }
+    });
+
+    tutorialOverlay.style.display = 'flex';
+    const messageBox = document.getElementById('tutorial-message-box');
+
+    switch (step) {
+        case 1: // スカウト誘導
+            {
+                const target = document.getElementById('scout-section');
+                const immediateButton = target.querySelector('button[onclick="scoutAdventurers(\'immediate\')"]');
+                const growthButton = target.querySelector('button[onclick="scoutAdventurers(\'growth\')"]');
+                const focusedButton = target.querySelector('button[onclick="scoutAdventurers(\'focused\')"]');
+
+                target.classList.add('tutorial-highlight');
+
+                // 集中スカウトを無効化
+                focusedButton.disabled = true;
+                focusedButton.classList.add('tutorial-disabled');
+
+                immediateButton.addEventListener('click', advanceTutorial, { once: true });
+                growthButton.addEventListener('click', advanceTutorial, { once: true });
+                tutorialText.textContent = 'ようこそギルドマスター！まずは冒険者を探しましょう。「即戦力重視」か「成長重視」を選んでください。';
+                break;
+            }
+        case 2: // 加入誘導
+            {
+                const target = document.getElementById('scout-area');
+                const candidateTable = document.getElementById('candidate-table');
+                const joinButton = document.getElementById('join-button');
+                if (target && candidateTable && joinButton) {
+                    target.classList.add('tutorial-highlight');
+
+                    const onJoinClickAndAdvance = () => {
+                        joinButton.removeEventListener('click', onJoinClickAndAdvance);
+                        advanceTutorial();
+                    };
+
+                    joinButton.addEventListener('click', onJoinClickAndAdvance);
+
+                    tutorialText.textContent = '素晴らしい候補者が見つかりましたね！ギルドに迎えたい冒険者を選んで、「加入させる」ボタンを押しましょう。';
+                }
+                break;
+            }
+        case 3: // 任務割り当て誘導
+            {
+                const target = document.getElementById('auto-assign-wrapper');
+                target.classList.add('tutorial-highlight');
+                const assignButton = target.querySelector('button');
+                if (assignButton) {
+                    assignButton.addEventListener('click', advanceTutorial, { once: true });
+                }
+                tutorialText.textContent = '頼もしい仲間が増えました！「ランダムに任務を割り当て」ボタンで、彼らに効率よく仕事を割り振りましょう。';
+                break;
+            }
+        case 4: // Next Month誘導
+            {
+                const target = document.getElementById('time-controls');
+                target.classList.add('tutorial-highlight');
+                const nextButton = target.querySelector('button[onclick="nextMonth()"]');
+                if (nextButton) {
+                    nextButton.addEventListener('click', endTutorial, { once: true });
+                }
+                tutorialText.textContent = '準備は万端です！「Next Month」ボタンを押して時間を進め、クエストの結果を確認しましょう。';
+                break;
+            }
+        default:
+            endTutorial();
+            break;
+    }
+}
+
+
+// --- ホーム画面機能 ---
+
+/**
+ * ゲームを開始します。
+ * @param {boolean} withTutorial - チュートリアルを実行するかどうか
+ */
+function startGame(withTutorial) {
+    document.getElementById('home-screen').style.display = 'none';
+    document.getElementById('game-container').style.display = 'block';
+
+    // ゲーム状態をリセット（必要に応じて）
+    // ここではグローバル変数を初期値に戻す
+    gold = 100;
+    adventurers = [];
+    scoutCandidates = [];
+    scoutSkill = 100;
+    questsInProgress = [];
+    nextAdventurerId = 1;
+    currentMonth = 1;
+    currentYear = 1;
+    allTimeAdventurers = {};
+
+    // ゲームの初期表示を更新
+    updateDisplay();
+
+    if (withTutorial) {
+        startTutorial();
+    }
+}
+
+/**
+ * 過去の記録（ギルドの殿堂）を表示します。
+ */
+function showPastRecords() {
+    const pastRecords = JSON.parse(localStorage.getItem('guildSoulHallOfFame') || '{}');
+
+    const homeScreen = document.getElementById('home-screen');
+    homeScreen.innerHTML = `
+        <h2>過去の記録 - ギルドの殿堂</h2>
+        <div id="hall-of-fame-container"></div>
+        <div style="text-align: center; margin-top: 30px;">
+            <button onclick="location.reload()">ホームに戻る</button>
+        </div>
+    `;
+    renderHallOfFame(pastRecords, 'hall-of-fame-container');
+}
+
+/**
+ * ギルドの殿堂を描画します。
+ * @param {Object} records - 表示する冒険者の記録
+ * @param {string} containerId - 描画先のコンテナID
+ */
+function renderHallOfFame(records, containerId) {
+    const container = document.getElementById(containerId);
+    if (Object.keys(records).length === 0) {
+        container.innerHTML = '<p>まだギルドの歴史に刻まれた冒険者はいません。</p>';
+        return;
+    }
+    
+    const table = document.createElement('table');
+    table.innerHTML = `
+        <tr>
+            <th>名前</th><th>性別</th><th>最高ランク</th><th>最高OVR</th>
+            <th>戦闘</th><th>魔法</th><th>探索</th>
+        </tr>
+    `;
+
+    const sortedRecords = Object.values(records).sort((a, b) => b.peakOvr - a.peakOvr);
+
+    sortedRecords.forEach(record => {
+        const rankColor = getRankColor(record.peakRank);
+        const row = table.insertRow();
+        row.innerHTML = `
+            <td>${record.name}</td><td>${record.gender}</td>
+            <td><span class="adventurer-rank" style="color: ${rankColor}; font-weight: bold;">${record.peakRank}</span></td>
+            <td>${record.peakOvr}</td><td>${record.peakSkills.combat}</td>
+            <td>${record.peakSkills.magic}</td><td>${record.peakSkills.exploration}</td>
+        `;
+    });
+
+    container.appendChild(table);
+}
+
 // --- 初期化 ---
 document.addEventListener('DOMContentLoaded', () => {
-    updateDisplay();
-    if (scoutAreaEl) {
-        scoutAreaEl.style.display = 'none';
-    }
-    // ★ 年表示に対応
-    document.getElementById('month').textContent = `${currentYear}年 ${currentMonth}月`;
-    updateScoutUpgradeButton();
+    // ゲーム開始はボタンクリックで行うため、ここでは何もしない
 });
