@@ -208,6 +208,8 @@ function updateAllTimeRecord(adv) {
             gender: adv.gender,
             peakOvr: adv.ovr,
             peakRank: adv.rank,
+            peakAge: adv.age,
+            recruitedBy: adv.recruitedBy,
             peakSkills: { ...adv.skills },
         };
     } else {
@@ -216,6 +218,7 @@ function updateAllTimeRecord(adv) {
         if (adv.ovr >= record.peakOvr) {
             record.peakOvr = adv.ovr;
             record.peakRank = adv.rank;
+            record.peakAge = adv.age;
             record.peakSkills = { ...adv.skills };
             // 名前が変更されている可能性も考慮
             record.name = adv.name;
@@ -287,7 +290,7 @@ function calculateBaseValue(age, baseBonus = 0) {
 }
 
 // ランダムな冒険者のデータを生成 (名前リストは省略せず全文記載)
-function generateAdventurer(baseBonus) { 
+function generateAdventurer(baseBonus, policyKey) { 
     // ★★★ 冒険者名の生成ロジックを修正/確定 ★★★
     const minAge = 17; 
     const maxAge = 60;
@@ -363,6 +366,7 @@ const namesFemale = [
         id: nextAdventurerId++,
         name: selectedName,
         gender: selectedGender,
+        recruitedBy: policyKey,
         age: age,
         status: '待機中',
         rank: 'G', // ランクを初期値Gとして追加
@@ -781,7 +785,7 @@ function scoutAdventurers(policyKey) {
     let attempts = 0;
     
     while (scoutCandidates.length < policy.limit && attempts < MAX_ATTEMPTS) { 
-        const newAdventurer = generateAdventurer(policy.baseBonus); 
+        const newAdventurer = generateAdventurer(policy.baseBonus, policyKey); 
         
         if (newAdventurer.age >= policy.minAge && newAdventurer.age <= policy.maxAge) {
              scoutCandidates.push(newAdventurer);
@@ -1801,6 +1805,8 @@ function showGameOverScreen() {
             <th>戦闘</th>
             <th>魔法</th>
             <th>探索</th>
+            <th>達成年齢</th>
+            <th>獲得方法</th>
             <th>操作</th>
         </tr>
     `;
@@ -1820,6 +1826,8 @@ function showGameOverScreen() {
                 <td>${record.peakSkills.combat}</td>
                 <td>${record.peakSkills.magic}</td>
                 <td>${record.peakSkills.exploration}</td>
+                <td>${record.peakAge}歳</td>
+                <td>${SCOUT_POLICIES[record.recruitedBy]?.name || '不明'}</td>
                 <td><button id="induct-btn-${record.id}" onclick="inductToHallOfFame(${record.id})">殿堂入り</button></td>
             </tr>
         `;
@@ -2058,7 +2066,7 @@ function renderHallOfFame(records, containerId) {
     table.innerHTML = `
         <tr>
             <th>名前</th><th>性別</th><th>最高ランク</th><th>最高OVR</th>
-            <th>戦闘</th><th>魔法</th><th>探索</th><th>操作</th>
+            <th>戦闘</th><th>魔法</th><th>探索</th><th>達成年齢</th><th>獲得方法</th><th>操作</th>
         </tr>
     `;
 
@@ -2071,7 +2079,8 @@ function renderHallOfFame(records, containerId) {
             <td>${record.name}</td><td>${record.gender}</td>
             <td><span class="adventurer-rank" style="color: ${rankColor}; font-weight: bold;">${record.peakRank}</span></td>
             <td>${record.peakOvr}</td><td>${record.peakSkills.combat}</td><td>${record.peakSkills.magic}</td>
-            <td>${record.peakSkills.exploration}</td><td><button onclick="removeFromHallOfFame(${record.id})">削除</button></td>
+            <td>${record.peakSkills.exploration}</td><td>${record.peakAge}歳</td>
+            <td>${SCOUT_POLICIES[record.recruitedBy]?.name || '不明'}</td><td><button onclick="removeFromHallOfFame(${record.id})">削除</button></td>
         `;
     });
 
