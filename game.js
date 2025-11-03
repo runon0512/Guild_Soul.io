@@ -1016,7 +1016,8 @@ function renderQuests() {
                 difficulty: requiredDifficulty,
                 aptitudes: { combat: '無関係', magic: '無関係', exploration: '無関係' }, 
                 isPromotion: true,
-                adv: adv // 冒険者オブジェクトを保持
+                adv: adv, // 冒険者オブジェクトを保持
+                nextRank: nextRank // ★ 昇級後のランクを保持
             };
             // 合格率を計算して追加
             promotionQuest.estimatedRate = calculateSuccessRate(promotionQuest, [adv]);
@@ -1039,7 +1040,7 @@ function renderQuests() {
                 <h4>🎓 昇級試験: ${pQuest.name}</h4>
                 <p><strong>目標OVR:</strong> ${pQuest.difficulty} / **${adv.name} のOVR: ${adv.ovr}**</p>
                 <p><strong>成功率目安:</strong> <span style="font-weight:bold; color:${statusColor};">${Math.round(pQuest.estimatedRate * 100)}%</span></p>
-                <p style="font-size:0.9em;">※この任務は**${adv.name}単独**で挑みます。成功すると${nextRank}ランクに昇級します。</p>
+                <p style="font-size:0.9em;">※この任務は**${adv.name}単独**で挑みます。成功すると${pQuest.nextRank}ランクに昇級します。</p>
                 <button onclick="showQuestSelection(${pQuest.id}, ${adv.id})">
                     試験を受ける
                 </button>
@@ -1110,7 +1111,7 @@ function renderQuests() {
  */
 function showQuestSelection(questId, targetAdvId = null) {
     // 昇級試験クエストオブジェクトを生成
-    let quest;
+    let quest, nextRank;
     // 昇級試験の判定はID >= 1000 または targetAdvId があるかで判断する
     const isPromotion = questId >= 1000 && targetAdvId !== null;
 
@@ -1119,7 +1120,7 @@ function showQuestSelection(questId, targetAdvId = null) {
         if (!adv || adv.rank === 'S') return;
         
         const currentRankIndex = RANKS.indexOf(adv.rank);
-        const nextRank = RANKS[currentRankIndex + 1];
+        nextRank = RANKS[currentRankIndex + 1];
         const requiredDifficulty = PROMOTION_DIFFICULTIES[adv.rank];
         
         quest = {
