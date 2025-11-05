@@ -85,7 +85,7 @@ const SCOUT_POLICIES = {
     },
     focused: { 
         name: "集中スカウト", 
-        cost: 30, // 30万G
+        cost: 300, // 300万G
         minAge: 28, 
         maxAge: 36, 
         baseBonus: 50, 
