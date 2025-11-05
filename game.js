@@ -542,6 +542,7 @@ function updateDisplay() {
     scoutSkillEl.textContent = scoutSkill;
     renderAdventurerList();
     renderQuests();
+    updateProjectedBalance(); // ★ 予測収支を更新
 }
 
 // ★ おすすめ割り当てボタンの表示/非表示を制御
@@ -673,6 +674,7 @@ function cancelScheduledQuest(advId, questName) {
     }
     
     alert(`${adv.name} の【${questName}】の派遣予定をキャンセルしました。`);
+    updateProjectedBalance(); // ★ 予測収支を更新
     updateDisplay();
 }
 
@@ -1515,6 +1517,7 @@ function autoAssignQuests() {
 
     if (assignedCount > 0) {
         alert(`${assignedCount}人の冒険者に任務を割り当てました。`);
+        updateProjectedBalance(); // ★ 予測収支を更新
         updateDisplay();
     } else {
         alert('条件に合う任務が見つからず、誰も割り当てられませんでした。');
@@ -1643,6 +1646,7 @@ function sendAdventurersToQuest(questId, isPromotion, targetAdvId = null) {
     cancelQuestSelection();
 
     alert(`【${quest.name}】に${sentAdventurers.length}名の冒険者を派遣予定に入れました！\n結果は「Next Month」で確認できます。`);
+    updateProjectedBalance(); // ★ 予測収支を更新
     updateDisplay();
 }
 
@@ -1657,6 +1661,44 @@ function cancelQuestSelection() {
     updateDisplay();
 }
 
+/**
+ * 全ての任務が成功した場合の予測収支を計算し、表示を更新します。
+ */
+function updateProjectedBalance() {
+    const container = document.getElementById('projected-balance-container');
+    if (!container) return;
+
+    if (questsInProgress.length === 0) {
+        container.style.display = 'none';
+        return;
+    }
+
+    let projectedIncome = 0;
+    let projectedSalaryExpense = 0;
+
+    // 1. 派遣予定のクエストからの収入を計算
+    questsInProgress.forEach(qData => {
+        // 昇級試験とストーリー任務は報酬がない
+        if (!qData.quest.isPromotion && !qData.quest.isStory) {
+            projectedIncome += qData.quest.reward;
+        }
+    });
+
+    // 2. 月給の支出を計算 (ストーリー任務の月は支払われない)
+    const isStoryQuestMonth = questsInProgress.some(qData => qData.quest.isStory);
+    if (!isStoryQuestMonth) {
+        adventurers.forEach(adv => {
+            projectedSalaryExpense += Math.ceil(adv.annualSalary / 11);
+        });
+    }
+
+    const netChange = projectedIncome - projectedSalaryExpense;
+    const netChangeClass = netChange >= 0 ? 'positive-balance' : 'negative-balance';
+
+    container.innerHTML = `
+        <strong>予測収支 (全成功時):</strong> 収入 ${projectedIncome}万 - 支出 ${projectedSalaryExpense}万 = <span class="${netChangeClass}">${netChange >= 0 ? '+' : ''}${netChange}万G</span>`;
+    container.style.display = 'block';
+}
 
 // --- ゲーム進行機能 ---
 
@@ -2465,7 +2507,102 @@ function loadGame(slot) {
     }
 }
 
+// --- 新しいタイトル画面機能 ---
+
+/**
+ * お洒落なタイトル画面を生成し、表示します。
+ */
+function renderStylishHomeScreen() {
+    const homeScreen = document.getElementById('home-screen');
+    if (!homeScreen) return;
+
+    // Google Fontsを動的に読み込み
+    const fontLink = document.createElement('link');
+    fontLink.href = 'https://fonts.googleapis.com/css2?family=Cinzel:wght@700&family=Noto+Serif+JP:wght@400;700&display=swap';
+    fontLink.rel = 'stylesheet';
+    document.head.appendChild(fontLink);
+
+    // スタイルを動的に追加
+    const style = document.createElement('style');
+    style.textContent = `
+        #home-screen {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            background: linear-gradient(135deg, #2c3e50, #4a69bd);
+            color: #ecf0f1;
+            text-align: center;
+            font-family: 'Noto Serif JP', serif;
+            overflow: hidden;
+        }
+        .home-title {
+            font-family: 'Cinzel', serif;
+            font-size: 5rem;
+            font-weight: 700;
+            text-shadow: 3px 3px 8px rgba(0,0,0,0.5);
+            margin-bottom: 10px;
+            animation: fadeInDown 1s ease-out;
+        }
+        .home-subtitle {
+            font-size: 1.5rem;
+            margin-bottom: 40px;
+            color: #bdc3c7;
+            animation: fadeInUp 1s ease-out 0.5s;
+            animation-fill-mode: backwards;
+        }
+        .home-menu {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            animation: fadeInUp 1s ease-out 1s;
+            animation-fill-mode: backwards;
+        }
+        .home-menu button {
+            background-color: transparent;
+            border: 2px solid #ecf0f1;
+            color: #ecf0f1;
+            padding: 12px 30px;
+            font-size: 1.1rem;
+            font-family: 'Noto Serif JP', serif;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            min-width: 250px;
+        }
+        .home-menu button:hover {
+            background-color: #ecf0f1;
+            color: #2c3e50;
+            transform: translateY(-3px);
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+        }
+        @keyframes fadeInDown { from { opacity: 0; transform: translateY(-30px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes fadeInUp { from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: translateY(0); } }
+    `;
+    document.head.appendChild(style);
+
+    // HTMLを生成
+    homeScreen.innerHTML = `
+        <h1 class="home-title">Guild Soul</h1>
+        <p class="home-subtitle">- ギルド運営シミュレーション -</p>
+        <div class="home-menu">
+            <button onclick="startGame(true)">はじめから (チュートリアル有り)</button>
+            <button onclick="startGame(false)">はじめから (チュートリアル無し)</button>
+            <button onclick="showSaveLoadModal('load')">ロード</button>
+            <button onclick="showPastRecords()">過去の記録</button>
+        </div>
+    `;
+
+    // ゲーム画面が表示されていた場合は非表示にする
+    const gameContainer = document.getElementById('game-container');
+    if (gameContainer) {
+        gameContainer.style.display = 'none';
+    }
+    homeScreen.style.display = 'flex';
+}
+
 // --- 初期化 ---
 document.addEventListener('DOMContentLoaded', () => {
     // ゲーム開始はボタンクリックで行うため、ここでは何もしない
+    renderStylishHomeScreen();
 });
