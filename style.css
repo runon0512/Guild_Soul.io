@@ -146,6 +146,34 @@ h2 {
     background-color: #f2f2f2;
 }
 
+/* --- アバター表示のスタイル --- */
+.adventurer-summary {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.avatar-container {
+    position: relative;
+    width: 64px; /* アバター画像の基本サイズ */
+    height: 64px;
+    flex-shrink: 0; /* コンテナが縮まないようにする */
+    overflow: hidden; /* このコンテナからはみ出した部分を非表示にする */
+    border: 1px solid #ccc; /* 枠線を追加 */
+    border-radius: 4px; /* 枠の角を少し丸くする */
+}
+
+.avatar-part {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%; /* 横幅をコンテナに合わせる */
+    height: auto; /* 縦横比を維持 */
+    /* 画像がぼやけないようにする設定 */
+    image-rendering: -webkit-optimize-contrast;
+    image-rendering: pixelated;
+}
+
 /* 待機中でない冒険者の行 */
 #adventurer-list tr.in-quest {
     background-color: #e6e6fa; /* 薄紫 */
