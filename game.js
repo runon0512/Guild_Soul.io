@@ -168,6 +168,21 @@ const ELEMENT_HUES = {
     '毒': 300, '水晶': 300, '獣': 35, '霊': 260, '竜': 15, '幻': 280, '時': 200, '星': 230
 };
 
+// ★ 属性名と髪色の明るさ(brightness)をマッピング
+const ELEMENT_BRIGHTNESS = {
+    '炎': 1.2, '烈火': 1.3, '爆炎': 1.4, '太陽': 1.6, '終焉': 1.3,
+    '水': 1.0, '流水': 1.0, '渦潮': 1.0,
+    '氷': 1.1, '氷結': 1.1,
+    '雷': 1.4, '電光': 1.5, '轟雷': 1.6,
+    '風': 1.0, '疾風': 1.0, '嵐': 1.0,
+    '土': 0.9, '大地': 0.9, 'ガイア': 0.9,
+    '光': 1.5, '聖光': 1.7, '神聖': 1.8, '月': 1.2, '創生': 1.6, '奇跡': 2.0,
+    '闇': 0.8, '常闇': 0.7, '深淵': 0.6, '混沌': 0.8, '虚無': 0.7,
+    '岩': 0.9, '鋼': 1.1, '機': 1.1,
+    '毒': 1.0, '水晶': 1.2, '獣': 1.1, '霊': 1.1, '竜': 1.2, '幻': 1.1, '時': 1.1, '星': 1.3
+};
+
+
 // --- アバターパーツの位置と大きさの設定 ---
 const AVATAR_PART_CONFIG = {
     // 各パーツのデフォルトスタイル
@@ -2771,6 +2786,7 @@ function renderHallOfFameTable(containerId) {
             // ★ '+'付きの属性でも元の名前で色を取得する
             const originalAttributeName = ATTRIBUTES[record.attribute]?.name.replace('+', '');
             const baseHue = ELEMENT_HUES[originalAttributeName] ?? null;
+            const brightness = ELEMENT_BRIGHTNESS[originalAttributeName] ?? 1.0;
             const hairHue = baseHue !== null ? baseHue + (Math.random() * 20 - 10) : 0;
             const eyesHue = baseHue !== null ? baseHue + (Math.random() * 20 - 10) : 0;
             const faceStyle = getPartStyle('face', record.avatar.face);
@@ -2778,10 +2794,10 @@ function renderHallOfFameTable(containerId) {
             const earsStyle = getPartStyle('ears', record.avatar.ears);
             const eyesStyle = getPartStyle('eyes', record.avatar.eyes);
             const hairStyle = getPartStyle('hair', record.avatar.hair);
-            const hairFilter = baseHue !== null ? `hue-rotate(${hairHue}deg) saturate(1.5)` : 'none';
+            const hairFilter = baseHue !== null ? `hue-rotate(${hairHue}deg) saturate(1.5) brightness(${brightness})` : 'none';
             hairStyle.filter = hairFilter;
             backStyle.filter = hairFilter;
-            eyesStyle.filter = baseHue !== null ? `hue-rotate(${eyesHue}deg) saturate(2)` : 'none';
+            eyesStyle.filter = baseHue !== null ? `hue-rotate(${eyesHue}deg) saturate(2) brightness(${brightness * 0.9})` : 'none';
             const styleToString = (styleObj) => Object.entries(styleObj).map(([key, value]) => `${key.replace(/([A-Z])/g, '-$1').toLowerCase()}:${value}`).join(';');
             const avatarHtml = `
                 <div class="avatar-container">
@@ -3107,6 +3123,7 @@ function renderHallOfFame(records, containerId) {
             // ★ '+'付きの属性でも元の名前で色を取得する
             const originalAttributeName = ATTRIBUTES[record.attribute]?.name.replace('+', '');
             const baseHue = ELEMENT_HUES[originalAttributeName] ?? null;
+            const brightness = ELEMENT_BRIGHTNESS[originalAttributeName] ?? 1.0;
             const hairHue = baseHue !== null ? baseHue + (Math.random() * 20 - 10) : 0;
             const eyesHue = baseHue !== null ? baseHue + (Math.random() * 20 - 10) : 0;
             const faceStyle = getPartStyle('face', record.avatar.face);
@@ -3114,10 +3131,10 @@ function renderHallOfFame(records, containerId) {
             const earsStyle = getPartStyle('ears', record.avatar.ears);
             const eyesStyle = getPartStyle('eyes', record.avatar.eyes);
             const hairStyle = getPartStyle('hair', record.avatar.hair);
-            const hairFilter = baseHue !== null ? `hue-rotate(${hairHue}deg) saturate(1.5)` : 'none';
+            const hairFilter = baseHue !== null ? `hue-rotate(${hairHue}deg) saturate(1.5) brightness(${brightness})` : 'none';
             hairStyle.filter = hairFilter;
             backStyle.filter = hairFilter;
-            eyesStyle.filter = baseHue !== null ? `hue-rotate(${eyesHue}deg) saturate(2)` : 'none';
+            eyesStyle.filter = baseHue !== null ? `hue-rotate(${eyesHue}deg) saturate(2) brightness(${brightness * 0.9})` : 'none';
             const styleToString = (styleObj) => Object.entries(styleObj).map(([key, value]) => `${key.replace(/([A-Z])/g, '-$1').toLowerCase()}:${value}`).join(';');
             const avatarHtml = `
                 <div class="avatar-container">
@@ -3157,6 +3174,7 @@ function renderHallOfFame(records, containerId) {
  * @returns {Object} ゲーム状態オブジェクト
  */
 function getGameState(dataName, memo) {
+    // ★ 動的に生成された属性も保存対象に含める
     return {
         dataName: dataName || `${currentYear}年${currentMonth}月 ギルドデータ`,
         difficulty: gameDifficulty, // ★ 難易度を保存
@@ -3170,6 +3188,7 @@ function getGameState(dataName, memo) {
         currentMonth,
         currentYear,
         allTimeAdventurers,
+        attributes: ATTRIBUTES, // ★ ATTRIBUTESオブジェクトを保存
         quests: quests.map(q => ({ id: q.id, available: q.available })), // クエストの利用可能状態のみ保存
         saveDate: new Date().toLocaleString('ja-JP')
     };
@@ -3180,6 +3199,10 @@ function getGameState(dataName, memo) {
  * @param {Object} gameState - ゲーム状態オブジェクト
  */
 function loadGameState(gameState) {
+    // ★ 保存されたATTRIBUTESオブジェクトを復元する
+    // これを他のデータより先に復元することで、以降の処理で属性情報を正しく参照できる
+    Object.assign(ATTRIBUTES, gameState.attributes || {});
+
     gameDifficulty = gameState.difficulty || 'hard'; // ★ 難易度をロード
     gold = gameState.gold;
     adventurers = gameState.adventurers;
