@@ -932,7 +932,7 @@ function renderAdventurerList() {
             const questNameMatch = adv.status.match(/クエスト予定: (.+)/);
             const questName = questNameMatch ? questNameMatch[1] : '';
             actionButtons = `<button onclick="cancelScheduledQuest(${adv.id}, '${questName}')">予定をキャンセル</button>`;
-        } else if (adv.status === '待機中' && !isOffseason) { // 待機中でオフシーズンでない場合
+        } else if (adv.status === '待機中' && !isOffseason && currentMonth !== 12) { // 待機中でオフシーズンでなく、かつ12月でない場合
             // 昇級試験ボタン
             if (adv.rank !== 'V') {
                 actionButtons += `<button class="action-btn-promotion" onclick="startPromotionExam(${adv.id})">昇級試験</button>`;
@@ -2245,11 +2245,11 @@ function sendAdventurersToQuest(questId, _isSpecial, targetAdvId = null) {
         if (!quest) return;
     }
 
+    // ★ どのタイプのクエストでも、ここで内部派遣関数を呼び出す
+    sendAdventurersToQuestInternal(quest, sentAdventurers);
+    
     // 3. UIを更新
     cancelQuestSelection();
-
-    alert(`【${quest.name}】に${sentAdventurers.length}名の冒険者を派遣予定に入れました！\n結果は「Next Month」で確認できます。`);
-    updateDisplay();
 }
 
 /**
