@@ -189,7 +189,7 @@ const AVATAR_PART_CONFIG = {
     defaults: {
         back: { top: '-60%', left: '-48%', width: '200%', zIndex: 5 }, // 後ろ髪のスタイルを追加
         face: { top: '5%', left: '7.5%', width: '90%', zIndex: 20 },
-        ears: { top: '27%', left: '-5.15%', width: '108%', zIndex: 10 },
+        ears: { top: '27%', left: '-1.15%', width: '108%', zIndex: 10 },
         eyes: { top: '31.5%', left: '14.28%', width: '72%', zIndex: 30 },
         hair: { top: '-20.7%', left: '5%', width: '96.5%', zIndex: 40 }, // 前髪
     },
@@ -1646,27 +1646,103 @@ function renderQuests() {
     bottomRowContainer.className = 'quest-top-row'; // 既存のスタイルを流用
     bottomRowContainer.style.marginTop = '20px'; // 上にマージンを追加
 
-    // 昇級試験の説明
+    // --- 昇級試験セクション ---
     const promotionColumn = document.createElement('div');
     promotionColumn.className = 'quest-column promotion-column';
     promotionColumn.innerHTML = `
         <h2>🎓 昇級試験について</h2>
         <p style="font-size: 0.9em;">冒険者のOVRが一定値に達すると、より高いランクへの昇級試験に挑戦できます。<br>
         試験は単独で挑み、成功するとランクが上がり、より高難易度の任務に挑戦できるようになります。<br>
-        挑戦可能な冒険者は、冒険者リストの「操作」欄から直接試験に派遣できます。<br>
         ※昇級するにつれ、必要な給料も高くなります。</p>
     `;
 
-    // 特別訓練の説明
+    // 挑戦可能な昇級試験をリストアップ
+    const promotionExams = [];
+    adventurers.forEach(adv => {
+        if (adv.status === '待機中' && adv.rank !== 'V') {
+            const currentRankIndex = RANKS.indexOf(adv.rank);
+            const nextRank = RANKS[currentRankIndex + 1];
+            const requiredDifficulty = PROMOTION_DIFFICULTIES[adv.rank];
+            const promotionQuest = {
+                id: 1000 + adv.id, name: `${adv.name} の昇級試験 (${adv.rank} → ${nextRank})`,
+                difficulty: requiredDifficulty, isPromotion: true, adv: adv, nextRank: nextRank
+            };
+            promotionQuest.estimatedRate = calculateSuccessRate(promotionQuest, [adv]);
+            promotionExams.push(promotionQuest);
+        }
+    });
+    promotionExams.sort((a, b) => b.estimatedRate - a.estimatedRate || b.difficulty - a.difficulty);
+
+    if (promotionExams.length > 0) {
+        promotionExams.forEach(pQuest => {
+            const questDiv = document.createElement('div');
+            questDiv.className = 'quest-item promotion-exam';
+            const statusColor = pQuest.estimatedRate >= 0.7 ? 'green' : (pQuest.estimatedRate >= 0.5 ? 'orange' : 'red');
+            questDiv.innerHTML = `
+                <h3>🎓 ${pQuest.name}</h3>
+                <p><strong>目標OVR:</strong> ${pQuest.difficulty} / <strong>${pQuest.adv.name} のOVR: ${pQuest.adv.ovr}</strong></p>
+                <p><strong>成功率目安:</strong> <span style="font-weight:bold; color:${statusColor};">${Math.round(pQuest.estimatedRate * 100)}%</span></p>
+                <button onclick="showQuestSelection(${pQuest.id}, ${pQuest.adv.id})">試験を受ける</button>
+            `;
+            promotionColumn.appendChild(questDiv);
+        });
+    } else {
+        promotionColumn.innerHTML += '<p>現在、受験可能な冒険者はいません。</p>';
+    }
+
+    // --- 特別訓練セクション ---
     const trainingColumn = document.createElement('div');
     trainingColumn.className = 'quest-column training-column';
     trainingColumn.innerHTML = `
         <h2>✨ 特別訓練について</h2>
         <p style="font-size: 0.9em;">冒険者のOVRが一定値に達すると、自身の属性を強化する特別訓練に挑戦できます。<br>
         訓練は単独で挑み、成功すると属性のレアリティが上昇し、レベルアップ時のボーナスが強化されます。<br>
-        挑戦可能な冒険者は、冒険者リストの「操作」欄から直接訓練に派遣できます。<br>
         ※費用は掛かりません</p>
     `;
+
+    // 挑戦可能な特別訓練をリストアップ
+    const trainingQuests = [];
+    adventurers.forEach(adv => {
+        const attribute = ATTRIBUTES[adv.attribute];
+        if (adv.status === '待機中' && !adv.isInherited && attribute && attribute.rarity !== 'Epic') {
+            const nextRarityMap = { 'Common': 'Uncommon', 'Uncommon': 'Rare', 'Rare': 'Epic' };
+            const nextRarity = nextRarityMap[attribute.rarity];
+            if (nextRarity) {
+                let trainingDifficulty;
+                switch (attribute.rarity) {
+                    case 'Common':   trainingDifficulty = 120; break;
+                    case 'Uncommon': trainingDifficulty = 150; break;
+                    case 'Rare':     trainingDifficulty = 200; break;
+                    default:         trainingDifficulty = 120;
+                }
+                const nextName = attribute.name + '+';
+                const trainingQuest = {
+                    id: 3000 + adv.id, name: `属性強化訓練 (${attribute.name} → ${nextName})`,
+                    difficulty: trainingDifficulty, isTraining: true, adv: adv,
+                };
+                trainingQuest.estimatedRate = calculateSuccessRate(trainingQuest, [adv]);
+                trainingQuests.push(trainingQuest);
+            }
+        }
+    });
+    trainingQuests.sort((a, b) => b.estimatedRate - a.estimatedRate);
+
+    if (trainingQuests.length > 0) {
+        trainingQuests.forEach(tQuest => {
+            const questDiv = document.createElement('div');
+            questDiv.className = 'quest-item training-quest';
+            const statusColor = tQuest.estimatedRate >= 0.7 ? 'green' : (tQuest.estimatedRate >= 0.5 ? 'orange' : 'red');
+            questDiv.innerHTML = `
+                <h3>✨ ${tQuest.name}</h3>
+                <p><strong>目標OVR:</strong> ${tQuest.difficulty} / <strong>${tQuest.adv.name} のOVR: ${tQuest.adv.ovr}</strong></p>
+                <p><strong>成功率目安:</strong> <span style="font-weight:bold; color:${statusColor};">${Math.round(tQuest.estimatedRate * 100)}%</span></p>
+                <button onclick="showQuestSelection(${tQuest.id}, ${tQuest.adv.id})">訓練を受ける</button>
+            `;
+            trainingColumn.appendChild(questDiv);
+        });
+    } else {
+        trainingColumn.innerHTML += '<p>現在、訓練可能な冒険者はいません。</p>';
+    }
 
     bottomRowContainer.appendChild(promotionColumn);
     bottomRowContainer.appendChild(trainingColumn);
