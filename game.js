@@ -545,6 +545,16 @@ function generateAdventurer(policyKey) {
     const policy = SCOUT_POLICIES[policyKey];
     const minAge = policy.minAge;
     const maxAge = policy.maxAge;
+
+    // 選択された属性に基づいて、アバターの色相と明るさを一度だけ決定
+    const attribute = ATTRIBUTES[selectedAttributeKey];
+    const originalAttributeName = attribute?.name.replace('+', '');
+    const baseHue = ELEMENT_HUES[originalAttributeName] ?? null;
+    const brightness = ELEMENT_BRIGHTNESS[originalAttributeName] ?? 1.0;
+
+    const advHairHue = baseHue !== null ? baseHue + (Math.random() * 20 - 10) : 0;
+    const advEyesHue = baseHue !== null ? baseHue + (Math.random() * 20 - 10) : 0;
+
     const age = Math.floor(Math.random() * (maxAge - minAge + 1)) + minAge;
     
     const genders = ['男性', '女性'];
@@ -618,8 +628,11 @@ const namesFemale = [
         face: selectAvatarPart('face', selectedGender),
         hair: selectAvatarPart('hair', selectedGender),
         back: selectAvatarPart('back', selectedGender),
-        eyes: selectAvatarPart('eyes', selectedGender),
-        ears: selectAvatarPart('ears', selectedGender)
+        eyes: selectAvatarPart('eyes', selectedGender), // アバターパーツの画像ファイル名
+        ears: selectAvatarPart('ears', selectedGender),
+        hairHue: advHairHue, // 生成された髪の色相を保存
+        eyesHue: advEyesHue, // 生成された目の色相を保存
+        brightness: brightness // 生成された明るさを保存
     };
 
 
@@ -642,7 +655,7 @@ const namesFemale = [
         annualSalary: annualSalary,
         exp: 0, 
         expToLevelUp: 100,
-        avatar: avatar, // アバター情報を追加
+        avatar: avatar, // アバター情報と生成された色相・明るさ情報を追加
         characterColor: '#cccccc' // ★ キャラクターカラーの初期値
     };
 }
@@ -1001,12 +1014,10 @@ function renderAdventurerList() {
         let nameCellHtml;
         if (showAvatars && adv.avatar) {
             // ★ '+'付きの属性でも元の名前で色を取得する
-            const originalAttributeName = ATTRIBUTES[adv.attribute]?.name.replace('+', '');
-            const baseHue = ELEMENT_HUES[originalAttributeName] ?? null;
-
-            // 色相が定義されている属性の場合のみ色を変更
-            const hairHue = baseHue !== null ? baseHue + (Math.random() * 20 - 10) : 0;
-            const eyesHue = baseHue !== null ? baseHue + (Math.random() * 20 - 10) : 0;
+            // 冒険者オブジェクトに保存された色相と明るさを使用
+            const hairHue = adv.avatar.hairHue ?? 0;
+            const eyesHue = adv.avatar.eyesHue ?? 0;
+            const brightness = adv.avatar.brightness ?? 1.0;
 
             // スタイルを取得
             const faceStyle = getPartStyle('face', adv.avatar.face);
@@ -1016,10 +1027,10 @@ function renderAdventurerList() {
             const hairStyle = getPartStyle('hair', adv.avatar.hair);
 
             // フィルタースタイルを動的に追加
-            const hairFilter = baseHue !== null ? `hue-rotate(${hairHue}deg) saturate(1.5)` : 'none';
+            const hairFilter = `hue-rotate(${hairHue}deg) saturate(1.5) brightness(${brightness})`;
             hairStyle.filter = hairFilter;
             backStyle.filter = hairFilter; // 後ろ髪にも同じフィルターを適用
-            eyesStyle.filter = baseHue !== null ? `hue-rotate(${eyesHue}deg) saturate(2)` : 'none';
+            eyesStyle.filter = `hue-rotate(${eyesHue}deg) saturate(2) brightness(${brightness * 0.9})`;
 
             // style属性を生成する関数
             const styleToString = (styleObj) => Object.entries(styleObj).map(([key, value]) => `${key.replace(/([A-Z])/g, '-$1').toLowerCase()}:${value}`).join(';');
@@ -2859,21 +2870,19 @@ function renderHallOfFameTable(containerId) {
         // ★ アバター表示用のHTMLを生成
         let nameCellHtml;
         if (record.avatar) {
-            // ★ '+'付きの属性でも元の名前で色を取得する
-            const originalAttributeName = ATTRIBUTES[record.attribute]?.name.replace('+', '');
-            const baseHue = ELEMENT_HUES[originalAttributeName] ?? null;
-            const brightness = ELEMENT_BRIGHTNESS[originalAttributeName] ?? 1.0;
-            const hairHue = baseHue !== null ? baseHue + (Math.random() * 20 - 10) : 0;
-            const eyesHue = baseHue !== null ? baseHue + (Math.random() * 20 - 10) : 0;
+            // 冒険者オブジェクトに保存された色相と明るさを使用
+            const hairHue = record.avatar.hairHue ?? 0;
+            const eyesHue = record.avatar.eyesHue ?? 0;
+            const brightness = record.avatar.brightness ?? 1.0;
             const faceStyle = getPartStyle('face', record.avatar.face);
             const backStyle = getPartStyle('back', record.avatar.back);
             const earsStyle = getPartStyle('ears', record.avatar.ears);
             const eyesStyle = getPartStyle('eyes', record.avatar.eyes);
             const hairStyle = getPartStyle('hair', record.avatar.hair);
-            const hairFilter = baseHue !== null ? `hue-rotate(${hairHue}deg) saturate(1.5) brightness(${brightness})` : 'none';
+            const hairFilter = `hue-rotate(${hairHue}deg) saturate(1.5) brightness(${brightness})`;
             hairStyle.filter = hairFilter;
             backStyle.filter = hairFilter;
-            eyesStyle.filter = baseHue !== null ? `hue-rotate(${eyesHue}deg) saturate(2) brightness(${brightness * 0.9})` : 'none';
+            eyesStyle.filter = `hue-rotate(${eyesHue}deg) saturate(2) brightness(${brightness * 0.9})`;
             const styleToString = (styleObj) => Object.entries(styleObj).map(([key, value]) => `${key.replace(/([A-Z])/g, '-$1').toLowerCase()}:${value}`).join(';');
             const avatarHtml = `
                 <div class="avatar-container">
@@ -3196,21 +3205,19 @@ function renderHallOfFame(records, containerId) {
         // ★ アバター表示用のHTMLを生成
         let nameCellHtml;
         if (record.avatar) {
-            // ★ '+'付きの属性でも元の名前で色を取得する
-            const originalAttributeName = ATTRIBUTES[record.attribute]?.name.replace('+', '');
-            const baseHue = ELEMENT_HUES[originalAttributeName] ?? null;
-            const brightness = ELEMENT_BRIGHTNESS[originalAttributeName] ?? 1.0;
-            const hairHue = baseHue !== null ? baseHue + (Math.random() * 20 - 10) : 0;
-            const eyesHue = baseHue !== null ? baseHue + (Math.random() * 20 - 10) : 0;
+            // 冒険者オブジェクトに保存された色相と明るさを使用
+            const hairHue = record.avatar.hairHue ?? 0;
+            const eyesHue = record.avatar.eyesHue ?? 0;
+            const brightness = record.avatar.brightness ?? 1.0;
             const faceStyle = getPartStyle('face', record.avatar.face);
             const backStyle = getPartStyle('back', record.avatar.back);
             const earsStyle = getPartStyle('ears', record.avatar.ears);
             const eyesStyle = getPartStyle('eyes', record.avatar.eyes);
             const hairStyle = getPartStyle('hair', record.avatar.hair);
-            const hairFilter = baseHue !== null ? `hue-rotate(${hairHue}deg) saturate(1.5) brightness(${brightness})` : 'none';
+            const hairFilter = `hue-rotate(${hairHue}deg) saturate(1.5) brightness(${brightness})`;
             hairStyle.filter = hairFilter;
             backStyle.filter = hairFilter;
-            eyesStyle.filter = baseHue !== null ? `hue-rotate(${eyesHue}deg) saturate(2) brightness(${brightness * 0.9})` : 'none';
+            eyesStyle.filter = `hue-rotate(${eyesHue}deg) saturate(2) brightness(${brightness * 0.9})`;
             const styleToString = (styleObj) => Object.entries(styleObj).map(([key, value]) => `${key.replace(/([A-Z])/g, '-$1').toLowerCase()}:${value}`).join(';');
             const avatarHtml = `
                 <div class="avatar-container">
