@@ -189,16 +189,6 @@ h2 {
     opacity: 0.7;
 }
 
-
-/* --- ランク表示のスタイル --- */
-.adventurer-rank {
-    font-weight: bold;
-    display: inline-block;
-    padding: 2px 5px;
-    border-radius: 3px;
-    color: rgb(99, 97, 97);
-}
-
 .rank-G { background-color: #808080; } /* Silver/Grey */
 .rank-F { background-color: #f39c12; } /* Orange */
 .rank-E { background-color: #2ecc71; } /* Emerald Green */
