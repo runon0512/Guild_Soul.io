@@ -380,6 +380,15 @@ const STORY_QUESTS = [
     { year: 10, id: 2010, name: "【ストーリー任務】世界の夜明け",     difficulty: 4000, aptitudes: { combat: 480, magic: 480, exploration: 480 } }
 ];
 
+/**
+ * 指定された年のストーリー任務オブジェクトを取得します。
+ * @param {number} year - 年
+ * @returns {Object|undefined} ストーリー任務オブジェクト、または見つからない場合はundefined
+ */
+function getStoryQuestForYear(year) {
+    return STORY_QUESTS.find(q => q.year === year);
+}
+
 
 // --- DOM要素 ---
 let goldEl = document.getElementById('gold');
@@ -2555,7 +2564,7 @@ function processQuestsResults(isGameOverCheckOnly = false) {
     let trainingMessages = []; // ★ 訓練メッセージ用
     let promotionMessages = []; // 昇級メッセージ用
 
-    questsInProgress.forEach(qData => {
+    for (const qData of questsInProgress) { // forEach を for...of に変更して break を可能にする
         const quest = qData.quest;
         const sentAdventurers = qData.adventurers;
         const successRate = qData.rate;
@@ -2602,7 +2611,7 @@ function processQuestsResults(isGameOverCheckOnly = false) {
                 // 10年目クリアでゲームクリア
                 if (currentYear === 10) {
                     showGameClearScreen(); // ゲームクリア画面へ
-                    return; // ゲームクリアなのでここで処理を終了
+                    return { isGameOver: true, message: message }; // ゲームクリアなのでここで処理を終了
                 }
                 resultMessage = `✅ 成功: ギルドは存続し、新年を迎えることができます！ (獲得EXP(平均): ${averageGainedExp}P)`;
                 // 報酬はないが、メッセージとして表示
@@ -2677,8 +2686,7 @@ function processQuestsResults(isGameOverCheckOnly = false) {
             if (quest.isStory) {
                 const gameOverMessage = `【${quest.name}】に失敗... ギルドの挑戦はここで終わりを告げた。`;
                 showGameOverScreen(gameOverMessage);
-                return { isGameOver: true, message: gameOverMessage };
-                return; // ゲームオーバーなのでここで処理を終了
+                return { isGameOver: true, message: gameOverMessage }; // ゲームオーバーなのでここで処理を終了
             }
 
 
@@ -2712,7 +2720,7 @@ function processQuestsResults(isGameOverCheckOnly = false) {
         
         // 冒険者のステータスを待機中に戻す
         sentAdventurers.forEach(adv => adv.status = '待機中');
-    });
+    } // for...of ループの終わり
 
     // 進行中リストをクリア
     questsInProgress = [];
